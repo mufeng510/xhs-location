@@ -5,6 +5,8 @@ plugins {
     id("org.jetbrains.kotlin.kapt")
 }
 
+import java.util.Properties
+
 android {
     namespace = "com.mufeng.xhs.location"
     compileSdk = 34
@@ -22,6 +24,20 @@ android {
         }
     }
 
+    signingConfigs {
+        create("release") {
+            val signingPropsFile = rootProject.file("signing.properties")
+            val props = Properties()
+            if (signingPropsFile.exists()) {
+                signingPropsFile.inputStream().use { props.load(it) }
+            }
+            storeFile = file(props.getProperty("storeFile", ""))
+            storePassword = props.getProperty("storePassword", "")
+            keyAlias = props.getProperty("keyAlias", "")
+            keyPassword = props.getProperty("keyPassword", "")
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = false
@@ -29,6 +45,7 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+            signingConfig = signingConfigs.getByName("release")
         }
         debug {
         }
