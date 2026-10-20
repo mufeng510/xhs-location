@@ -31,7 +31,7 @@ fun MapScreen(onConfirm: (Double, Double, String) -> Unit) {
                 .padding(16.dp)
         )
 
-        // 地图占位区域
+        // 地图区域 - MapLibre MapView 占位（待集成原生 MapView）
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -39,11 +39,18 @@ fun MapScreen(onConfirm: (Double, Double, String) -> Unit) {
                 .padding(16.dp),
             contentAlignment = Alignment.Center
         ) {
-            Text(
-                text = "地图区域（MapLibre 集成中）",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text(
+                    text = "地图区域",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Text(
+                    text = "MapLibre + OpenStreetMap",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
         }
 
         Spacer(modifier = Modifier.height(8.dp))
@@ -72,17 +79,23 @@ fun MapScreen(onConfirm: (Double, Double, String) -> Unit) {
                             .padding(horizontal = 8.dp)
                     ) {
                         result.places.forEach { place ->
-                            Text(
-                                text = place.display_name,
-                                style = MaterialTheme.typography.bodyMedium,
-                                modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
-                            )
-                            Text(
-                                text = "${place.lat}, ${place.lon}",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp)
-                            )
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 8.dp)
+                            ) {
+                                Text(
+                                    text = place.display_name,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
+                                )
+                                Text(
+                                    text = "${place.lat}, ${place.lon}",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp)
+                                )
+                            }
                         }
                     }
                 }

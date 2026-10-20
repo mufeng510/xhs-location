@@ -45,6 +45,11 @@ class MapViewModel @Inject constructor(
         _uiState.value = _uiState.value.copy(selectedLat = lat, selectedLon = lon, selectedAddress = place.display_name)
     }
 
+    /** 地图点击选点：直接设置经纬度和地址显示 */
+    fun selectPlace(lat: Double, lon: Double, address: String) {
+        _uiState.value = _uiState.value.copy(selectedLat = lat, selectedLon = lon, selectedAddress = address)
+    }
+
     data class UiState(
         val query: String = "",
         val places: List<NominatimPlace> = emptyList(),
