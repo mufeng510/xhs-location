@@ -1,0 +1,82 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+env:
+  COMPILE_SDK: 34
+  MIN_SDK: 26
+  TARGET_SDK: 34
+  JDK_VERSION: 17
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: ${{ env.JDK_VERSION }}
+          cache: gradle
+
+      - name: Validate Gradle wrapper
+        run: |
+          if [ ! -f gradlew ]; then echo "Gradle wrapper missing, run: gradle wrapper" && exit 1; fi
+          chmod +x gradlew
+
+      - name: Gradle Build (Debug)
+        if: github.event_name == 'pull_request'
+        run: ./gradlew :app:assembleDebug
+
+      - name: Unit Test
+        if: github.event_name == 'pull_request'
+        run: ./gradlew :app:testDebugUnitTest
+
+      - name: Instrumentation Test
+        if: github.event_name == 'pull_request'
+        run: ./gradlew :app:connectedDebugAndroidTest
+        env:
+          # 如需运行插桩测试，需在 GitHub 托管运行器上启动模拟器
+          # 此处保留步骤，实际执行需配合 emulator-action
+          ADB_INSTALL_TIMEOUT: 120
+
+  release-build:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    needs: build-and-test
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: ${{ env.JDK_VERSION }}
+          cache: gradle
+
+      - name: Validate Gradle wrapper
+        run: |
+          if [ ! -f gradlew ]; then echo "Gradle wrapper missing" && exit 1; fi
+          chmod +x gradlew
+
+      - name: Build Release APK
+        run: ./gradlew :app:assembleRelease
+
+      - name: Upload APK Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: vlocation-release-apk
+          path: app/build/outputs/apk/release/app-release.apk
+          retention-days: 30

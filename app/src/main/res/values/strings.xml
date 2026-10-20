@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">vlocation</string>
+    <string name="status_stopped">未模拟</string>
+    <string name="status_running">模拟运行中</string>
+    <string name="current_location">当前模拟位置</string>
+    <string name="location_unknown">未知位置</string>
+    <string name="btn_start">开始模拟</string>
+    <string name="btn_stop">停止模拟</string>
+    <string name="btn_map">选择位置</string>
+    <string name="permission_title">权限设置</string>
+    <string name="permission_developer">开发者选项未开启</string>
+    <string name="permission_mock_app">未设置为模拟位置应用</string>
+    <string name="permission_guide_desc">请前往系统设置，开启开发者选项，并将 vlocation 设置为模拟位置（Mock Location）应用，否则无法启动模拟定位。</string>
+    <string name="btn_open_settings">打开系统设置</string>
+    <string name="settings_title">设置</string>
+    <string name="settings_permission_status">权限状态</string>
+    <string name="settings_github">开源地址</string>
+    <string name="settings_about">关于</string>
+    <string name="about_text">vlocation 仅提供系统模拟定位能力，不上传用户位置，不收集数据，无账号，无服务器。不保证绕过第三方应用检测机制。</string>
+    <string name="search_hint">搜索地点</string>
+    <string name="search_placeholder">输入城市或地点名称</string>
+    <string name="search_no_result">未找到匹配地点</string>
+    <string name="search_error">搜索失败，请检查网络后重试</string>
+    <string name="confirm_select">确认选择</string>
+    <string name="notify_channel_id">location_foreground</string>
+    <string name="notify_channel_name">模拟定位服务</string>
+    <string name="notify_channel_desc">后台持续运行模拟定位</string>
+    <string name="notify_running">vlocation 正在运行</string>
+    <string name="notify_location_prefix">模拟位置：</string>
+    <string name="auto_restore">开机自动恢复</string>
+    <string name="first_launch">首次启动已完成</string>
+    <string name="error_service">前台服务启动失败</string>
+    <string name="error_permission">缺少模拟位置权限，无法启动</string>
+</resources>
