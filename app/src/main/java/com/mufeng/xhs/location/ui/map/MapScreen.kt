@@ -46,7 +46,7 @@ fun MapScreen(onConfirm: (Double, Double, String) -> Unit) {
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 Text(
-                    text = "MapLibre + OpenStreetMap",
+                    text = "MapLibre + OpenStreetMap (待集成)",
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )

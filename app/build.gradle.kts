@@ -1,6 +1,6 @@
 plugins {
-    id("com.android.application") version "8.2.0"
-    id("org.jetbrains.kotlin.android") version "1.9.20"
+    id("com.android.application")
+    id("org.jetbrains.kotlin.android")
     id("com.google.dagger.hilt.android") version "2.50"
     id("org.jetbrains.kotlin.kapt")
 }
@@ -61,7 +61,7 @@ android {
     }
 
     composeOptions {
-        kotlinCompilerExtensionVersion = "1.5.4"
+        kotlinCompilerExtensionVersion = "1.5.12"
     }
 
     buildFeatures {
@@ -83,6 +83,7 @@ android {
 }
 
 dependencies {
+    // Compose BOM manages all Compose library versions
     implementation(platform(libs.compose.bom))
 
     implementation("androidx.compose.ui:ui")
@@ -94,6 +95,7 @@ dependencies {
     implementation("androidx.compose.material3:material3")
     implementation("androidx.compose.material:material-icons-extended")
     implementation("androidx.compose.runtime:runtime")
+    implementation(libs.androidx.lifecycle.runtime.compose)
 
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.activity.compose)
