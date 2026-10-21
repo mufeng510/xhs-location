@@ -5,7 +5,8 @@ import android.content.Context
 import android.content.Intent
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import com.google.truth.Truth.assertThat
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 
@@ -13,27 +14,27 @@ import org.junit.runner.RunWith
 class LocationForegroundServiceTest {
 
     @Test
-    fun `createStartIntent should set action START`() {
+    fun createStartIntent_should_set_action_START() {
         val context = ApplicationProvider.getApplicationContext<Context>()
         val intent = LocationForegroundService.createStartIntent(context, 31.2304, 121.4737, 5.0f, "Shanghai")
 
-        assertThat(intent.action).isEqualTo(LocationForegroundService.ACTION_START)
-        assertThat(intent.getDoubleExtra(LocationForegroundService.EXTRA_LATITUDE, 0.0)).isEqualTo(31.2304)
-        assertThat(intent.getDoubleExtra(LocationForegroundService.EXTRA_LONGITUDE, 0.0)).isEqualTo(121.4737)
-        assertThat(intent.getFloatExtra(LocationForegroundService.EXTRA_ACCURACY, 0.0f)).isEqualTo(5.0f)
-        assertThat(intent.getStringExtra(LocationForegroundService.EXTRA_ADDRESS)).isEqualTo("Shanghai")
+        assertEquals(LocationForegroundService.ACTION_START, intent.action)
+        assertEquals(31.2304, intent.getDoubleExtra(LocationForegroundService.EXTRA_LATITUDE, 0.0), 0.0001)
+        assertEquals(121.4737, intent.getDoubleExtra(LocationForegroundService.EXTRA_LONGITUDE, 0.0), 0.0001)
+        assertEquals(5.0f, intent.getFloatExtra(LocationForegroundService.EXTRA_ACCURACY, 0.0f))
+        assertEquals("Shanghai", intent.getStringExtra(LocationForegroundService.EXTRA_ADDRESS))
     }
 
     @Test
-    fun `createStopIntent should set action STOP`() {
+    fun createStopIntent_should_set_action_STOP() {
         val context = ApplicationProvider.getApplicationContext<Context>()
         val intent = LocationForegroundService.createStopIntent(context)
 
-        assertThat(intent.action).isEqualTo(LocationForegroundService.ACTION_STOP)
+        assertEquals(LocationForegroundService.ACTION_STOP, intent.action)
     }
 
     @Test
-    fun `service class extends Service`() {
-        assertThat(Service::class.java.isAssignableFrom(LocationForegroundService::class.java)).isTrue()
+    fun serviceClass_extends_Service() {
+        assertTrue(Service::class.java.isAssignableFrom(LocationForegroundService::class.java))
     }
 }
