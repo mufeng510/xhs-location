@@ -45,7 +45,16 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
-            signingConfig = signingConfigs.getByName("release")
+            val signingPropsFile = rootProject.file("signing.properties")
+            if (signingPropsFile.exists()) {
+                signingConfig = signingConfigs.getByName("release")
+            } else {
+                // CI 环境不存在 provider 专用 keystore（signing.properties 被 gitignore，
+                // 且 storeFile 指向本地绝对路径）。回退到 AGP 自动创建的 debug 签名配置，
+                // 使 release APK 在 CI 中仍能成功 assemble，仅用于构建 artifact，
+                // 不用于实际生产发布。
+                signingConfig = signingConfigs.getByName("debug")
+            }
         }
         debug {
         }
