@@ -25,16 +25,16 @@ android {
     }
 
     signingConfigs {
-        create("release") {
-            val signingPropsFile = rootProject.file("signing.properties")
-            val props = Properties()
-            if (signingPropsFile.exists()) {
+        val signingPropsFile = rootProject.file("signing.properties")
+        if (signingPropsFile.exists()) {
+            create("release") {
+                val props = Properties()
                 signingPropsFile.inputStream().use { props.load(it) }
+                storeFile = file(props.getProperty("storeFile", ""))
+                storePassword = props.getProperty("storePassword", "")
+                keyAlias = props.getProperty("keyAlias", "")
+                keyPassword = props.getProperty("keyPassword", "")
             }
-            storeFile = file(props.getProperty("storeFile", ""))
-            storePassword = props.getProperty("storePassword", "")
-            keyAlias = props.getProperty("keyAlias", "")
-            keyPassword = props.getProperty("keyPassword", "")
         }
     }
 
@@ -45,12 +45,16 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
-            // CI 环境没有 provider 专用 keystore（signing.properties 被 gitignore，
-            // 且 storeFile 指向本地绝对路径），无法为 release 签名。统一使用
-            // AGP 自动创建的 debug 签名配置，使 release APK 在 CI 中仍能成功
-            // assemble 作为 artifact，不适用于生产发布。本地如需 release 签名，
-            // 可自行提供 signing.properties 并改为 signingConfigs.getByName("release")。
-            signingConfig = signingConfigs.getByName("debug")
+            val signingPropsFile = rootProject.file("signing.properties")
+            if (signingPropsFile.exists()) {
+                signingConfig = signingConfigs.getByName("release")
+            } else {
+                // CI 环境没有 provider 专用 keystore（signing.properties 被 gitignore，
+                // 且 storeFile 指向本地绝对路径）。回退到 AGP 自动创建的 debug 签名配置，
+                // 使 release APK 在 CI 中仍能成功 assemble 作为 artifact，
+                // 不适用于生产发布。本地如需 release 签名，可自行提供 signing.properties。
+                signingConfig = signingConfigs.getByName("debug")
+            }
         }
         debug {
         }
