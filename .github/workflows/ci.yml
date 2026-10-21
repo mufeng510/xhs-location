@@ -33,9 +33,6 @@ jobs:
           if [ ! -f gradlew ]; then echo "Gradle wrapper missing, run: gradle wrapper" && exit 1; fi
           chmod +x gradlew
 
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
-
       - name: Gradle Build (Debug)
         if: github.event_name == 'pull_request'
         run: ./gradlew :app:assembleDebug
@@ -73,9 +70,6 @@ jobs:
         run: |
           if [ ! -f gradlew ]; then echo "Gradle wrapper missing" && exit 1; fi
           chmod +x gradlew
-
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
 
       - name: Build Release APK
         run: ./gradlew :app:assembleRelease
