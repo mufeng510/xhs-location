@@ -1,31 +1,26 @@
 package com.mufeng.xhs.location.ui.navigation
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
+import androidx.compose.ui.Modifier
+import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
-import com.mufeng.xhs.location.ui.home.HomeScreen
-import com.mufeng.xhs.location.ui.map.MapScreen
-import com.mufeng.xhs.location.ui.settings.SettingsScreen
-import com.mufeng.xhs.location.ui.components.PermissionGuideScreen
+import com.mufeng.xhs.location.vpn.ProxyViewModel
+import com.mufeng.xhs.location.vpn.ProxySettingsScreen
 
 @Composable
 fun AppNavHost() {
     val navController = rememberNavController()
-    NavHost(navController = navController, startDestination = "home") {
-        composable("home") {
-            HomeScreen(onMapClicked = { navController.navigate("map") })
-        }
-        composable("map") {
-            MapScreen(onConfirm = { lat, lon, address ->
-                navController.popBackStack()
-            })
-        }
-        composable("settings") {
-            SettingsScreen()
-        }
-        composable("permission_guide") {
-            PermissionGuideScreen()
+    val viewModel = hiltViewModel<ProxyViewModel>()
+
+    NavHost(navController = navController, startDestination = "vpn_settings") {
+        composable("vpn_settings") {
+            ProxySettingsScreen()
         }
     }
 }

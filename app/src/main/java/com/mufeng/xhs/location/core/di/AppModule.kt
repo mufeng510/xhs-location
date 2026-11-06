@@ -6,6 +6,10 @@ import com.mufeng.xhs.location.data.datastore.AppSettingsDataStore
 import com.mufeng.xhs.location.data.datastore.DefaultAppSettingsDataStore
 import com.mufeng.xhs.location.data.datastore.DefaultLocationDataStore
 import com.mufeng.xhs.location.data.datastore.LocationDataStore
+import com.mufeng.xhs.location.map.OfflinePlaceDatabase
+import com.mufeng.xhs.location.vpn.DefaultProxyDataStore
+import com.mufeng.xhs.location.vpn.ProxyDataStore
+import com.mufeng.xhs.location.vpn.ProxyFetcher
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -39,4 +43,19 @@ object AppModule {
     @Provides
     @Singleton
     fun provideLocationAccuracy(): Float = 5.0f
+
+    @Provides
+    @Singleton
+    fun provideProxyDataStore(prefs: SharedPreferences): ProxyDataStore =
+        DefaultProxyDataStore(prefs)
+
+    @Provides
+    @Singleton
+    fun provideOfflinePlaceDatabase(): OfflinePlaceDatabase =
+        OfflinePlaceDatabase
+
+    @Provides
+    @Singleton
+    fun provideProxyFetcher(): ProxyFetcher =
+        ProxyFetcher.create()
 }

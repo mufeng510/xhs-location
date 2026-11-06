@@ -1,10 +1,13 @@
 package com.mufeng.xhs.location.service
 
 import android.app.Notification
+import android.app.NotificationChannel
+import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.Service
 import android.content.Context
 import android.content.Intent
+import android.os.Build
 import android.os.IBinder
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
@@ -35,6 +38,21 @@ class LocationForegroundService : Service() {
 
     override fun onCreate() {
         super.onCreate()
+        createNotificationChannel()
+    }
+
+    private fun createNotificationChannel() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val channel = NotificationChannel(
+                channelId,
+                getString(R.string.notify_channel_name),
+                NotificationManager.IMPORTANCE_LOW
+            ).apply {
+                description = getString(R.string.notify_channel_desc)
+            }
+            val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            notificationManager.createNotificationChannel(channel)
+        }
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -43,6 +61,7 @@ class LocationForegroundService : Service() {
             ACTION_START -> handleStart(intent)
             ACTION_STOP -> handleStop()
             ACTION_UPDATE -> handleUpdate(intent)
+            null -> restoreFromPrefsIfEnabled() // 系统粘性拉起：恢复上次模拟
         }
         return START_STICKY
     }
@@ -55,6 +74,28 @@ class LocationForegroundService : Service() {
         locationScheduler.stop()
         mockLocationManager.stop()
         serviceScope.cancel()
+    }
+
+    /** 系统粘性拉起（intent 为 null）时：若上次启用模拟，按存储的配置恢复 */
+    private fun restoreFromPrefsIfEnabled() {
+        try {
+            val prefs = getSharedPreferences("vlocation_preferences", MODE_PRIVATE)
+            if (prefs.getString("enabled", "false") != "true") return
+            val lat = prefs.getString("latitude", "0.0")?.toDoubleOrNull() ?: 0.0
+            val lon = prefs.getString("longitude", "0.0")?.toDoubleOrNull() ?: 0.0
+            val acc = prefs.getString("accuracy", "5.0")?.toFloatOrNull() ?: 5.0f
+            if (lat == 0.0 && lon == 0.0) return
+            val restoreIntent = Intent(this, LocationForegroundService::class.java).apply {
+                action = ACTION_START
+                putExtra(EXTRA_LATITUDE, lat)
+                putExtra(EXTRA_LONGITUDE, lon)
+                putExtra(EXTRA_ACCURACY, acc)
+                putExtra(EXTRA_ADDRESS, "%.4f, %.4f".format(lat, lon))
+            }
+            handleStart(restoreIntent)
+        } catch (e: Exception) {
+            android.util.Log.w("LocationForegroundService", "restore failed: ${e.message}")
+        }
     }
 
     private fun handleStart(intent: Intent?) {
@@ -73,7 +114,7 @@ class LocationForegroundService : Service() {
             config = currentConfig!!,
             onLocation = { _, _ -> },
             onError = { e ->
-                // 服务异常：记录并继续，由界面层通过流感知
+                android.util.Log.e("LocationForegroundService", "location injection error: ${e.message}", e)
             }
         )
     }

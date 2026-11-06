@@ -37,11 +37,24 @@
             </intent-filter>
         </activity>
 
+        <activity
+            android:name=".ui.map.MapActivity"
+            android:exported="false"
+            android:theme="@style/AppTheme" />
+
         <service
             android:name=".service.LocationForegroundService"
             android:exported="false"
-            android:foregroundServiceType="location"
-            android:permission="android.permission.BIND_JOB_SERVICE" />
+            android:foregroundServiceType="location" />
+
+        <service
+            android:name=".vpn.VpnProxyService"
+            android:exported="false"
+            android:permission="android.permission.BIND_VPN_SERVICE">
+            <intent-filter>
+                <action android:name="android.net.VpnService" />
+            </intent-filter>
+        </service>
 
         <receiver
             android:name=".boot.BootReceiver"

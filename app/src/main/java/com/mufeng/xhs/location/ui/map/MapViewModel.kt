@@ -3,8 +3,9 @@ package com.mufeng.xhs.location.ui.map
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.mufeng.xhs.location.map.SearchService
 import com.mufeng.xhs.location.map.NominatimPlace
+import com.mufeng.xhs.location.map.OfflinePlaceDatabase
+import com.mufeng.xhs.location.map.SearchService
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -33,7 +34,25 @@ class MapViewModel @Inject constructor(
                     _uiState.value = _uiState.value.copy(result = result, places = result.places)
                 }
                 is SearchService.SearchResult.Error -> {
-                    _uiState.value = _uiState.value.copy(result = result)
+                    // 网络搜索失败（如域名被屏蔽、无网络），回退到离线数据库
+                    val offlinePlaces = OfflinePlaceDatabase.search(query)
+                    if (offlinePlaces.isNotEmpty()) {
+                        val nominatimPlaces = offlinePlaces.map { offline ->
+                            NominatimPlace(
+                                lat = offline.lat.toString(),
+                                lon = offline.lon.toString(),
+                                display_name = offline.displayName,
+                                `type` = "offline",
+                                classType = "city"
+                            )
+                        }
+                        _uiState.value = _uiState.value.copy(
+                            result = SearchService.SearchResult.Success(nominatimPlaces),
+                            places = nominatimPlaces
+                        )
+                    } else {
+                        _uiState.value = _uiState.value.copy(result = result)
+                    }
                 }
                 is SearchService.SearchResult.Loading -> {}
             }

@@ -10,13 +10,19 @@ const val KEY_LONGITUDE = "longitude"
 const val KEY_ACCURACY = "accuracy"
 const val KEY_ENABLED = "enabled"
 const val KEY_LAST_UPDATED = "last_updated"
+const val KEY_CITY = "city"
+const val KEY_TIMEZONE = "timezone"
+const val KEY_COUNTRY = "country"
 
 data class LocationConfig(
     val latitude: Double = 0.0,
     val longitude: Double = 0.0,
     val accuracy: Float = 5.0f,
     val enabled: Boolean = false,
-    val lastUpdated: Long = 0L
+    val lastUpdated: Long = 0L,
+    val city: String = "",
+    val timezone: String = "",
+    val country: String = ""
 )
 
 interface LocationDataStore {
@@ -31,12 +37,17 @@ class DefaultLocationDataStore(
 ) : LocationDataStore {
 
     override suspend fun getLocationConfig(): LocationConfig {
+        val latStr = prefs.getString(KEY_LATITUDE, "0.0") ?: "0.0"
+        val lonStr = prefs.getString(KEY_LONGITUDE, "0.0") ?: "0.0"
         return LocationConfig(
-            latitude = (prefs.getString(KEY_LATITUDE, "0.0") ?: "0.0").toDouble(),
-            longitude = (prefs.getString(KEY_LONGITUDE, "0.0") ?: "0.0").toDouble(),
+            latitude = latStr.toDouble(),
+            longitude = lonStr.toDouble(),
             accuracy = (prefs.getString(KEY_ACCURACY, "5.0") ?: "5.0").toFloat(),
             enabled = (prefs.getString(KEY_ENABLED, "false") ?: "false") == "true",
-            lastUpdated = (prefs.getString(KEY_LAST_UPDATED, "0") ?: "0").toLong()
+            lastUpdated = (prefs.getString(KEY_LAST_UPDATED, "0") ?: "0").toLong(),
+            city = prefs.getString(KEY_CITY, "") ?: "",
+            timezone = prefs.getString(KEY_TIMEZONE, "") ?: "",
+            country = prefs.getString(KEY_COUNTRY, "") ?: ""
         )
     }
 
@@ -47,6 +58,9 @@ class DefaultLocationDataStore(
         editor.putString(KEY_ACCURACY, config.accuracy.toString())
         editor.putString(KEY_ENABLED, config.enabled.toString())
         editor.putString(KEY_LAST_UPDATED, config.lastUpdated.toString())
+        editor.putString(KEY_CITY, config.city)
+        editor.putString(KEY_TIMEZONE, config.timezone)
+        editor.putString(KEY_COUNTRY, config.country)
         editor.apply()
     }
 
