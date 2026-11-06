@@ -52,7 +52,6 @@ class ProxyViewModel @Inject constructor(
 
     init {
         load()
-        fetchFreshProxies()
         checkBuiltinReachability()
     }
 
@@ -80,31 +79,71 @@ class ProxyViewModel @Inject constructor(
         viewModelScope.launch {
             val config = proxyDataStore.getProxyConfig()
             val locationConfig = locationRepository.getLocationConfig()
+            val sources = proxyDataStore.getProxySources()
             _uiState.value = _uiState.value.copy(
                 config = config,
                 locationConfig = locationConfig,
+                selectedSources = sources,
                 isLoading = false
             )
+            // 加载完成后再自动获取，保证用的是用户保存的源选择
+            fetchFreshProxies()
         }
     }
 
     // ========== 自动获取代理 ==========
 
+    /** 切换某个代理源的选中状态并持久化；至少允许清空（清空时获取按钮禁用） */
+    fun toggleSource(id: String) {
+        val current = _uiState.value.selectedSources
+        val updated = if (id in current) current - id else current + id
+        _uiState.value = _uiState.value.copy(selectedSources = updated)
+        viewModelScope.launch { proxyDataStore.saveProxySources(updated) }
+    }
+
+    /** 勾选全部源 */
+    fun selectAllSources() {
+        setSources(ProxySourceRegistry.all.map { it.id }.toSet())
+    }
+
+    /** 恢复默认勾选（proxifly + ProxyScrape + proxyfreeonly + ProxyClean） */
+    fun resetSources() {
+        setSources(ProxySourceRegistry.defaultSelectedIds)
+    }
+
+    private fun setSources(ids: Set<String>) {
+        _uiState.value = _uiState.value.copy(selectedSources = ids)
+        viewModelScope.launch { proxyDataStore.saveProxySources(ids) }
+    }
+
     fun fetchFreshProxies() {
         if (_uiState.value.fetching) return
+        val sourceIds = _uiState.value.selectedSources
+        if (sourceIds.isEmpty()) {
+            _uiState.value = _uiState.value.copy(
+                error = "请至少选择一个代理源。"
+            )
+            return
+        }
+        // 标记所选源为抓取中（已展示过结果的源保留 Ok 状态直到本次完成）
         _uiState.value = _uiState.value.copy(fetching = true, error = null)
         viewModelScope.launch {
             try {
-                val fresh = proxyFetcher.fetchFreshProxies()
+                val result = proxyFetcher.fetchFromSources(sourceIds)
+                val fresh = result.proxies
                 val matched = fresh.find {
                     it.server == _uiState.value.config.server && it.port == _uiState.value.config.port
                 }
                 val allUnreachable = fresh.isNotEmpty() && fresh.none { it.xhsReachable }
+                val failedSources = result.sourceStatus.filterValues { it is SourceFetchStatus.Failed }.keys
                 _uiState.value = _uiState.value.copy(
                     fetching = false,
                     freshProxies = fresh,
+                    sourceStatus = result.sourceStatus,
                     selectedXhsReachable = matched?.xhsReachable ?: _uiState.value.selectedXhsReachable,
                     error = when {
+                        fresh.isEmpty() && failedSources.isNotEmpty() ->
+                            "所选源均不可用（${failedSources.size} 个失败），已保留内置节点，可继续选择使用，或更换代理源后重试。"
                         fresh.isEmpty() -> "未能获取到可用代理，已保留内置节点，可继续选择使用。"
                         allUnreachable -> "本批自动获取的节点均无法访问小红书（免费代理常见），可刷新重试，或切换内置/手动输入节点。"
                         else -> null
@@ -361,6 +400,10 @@ class ProxyViewModel @Inject constructor(
         val testState: VpnState = VpnState.DISCONNECTED,
         val selectedXhsReachable: Boolean? = null,
         val xhsTestResult: String? = null,
-        val searchResults: List<OfflinePlaceDatabase.OfflinePlace> = emptyList()
+        val searchResults: List<OfflinePlaceDatabase.OfflinePlace> = emptyList(),
+        /** 用户选中的代理源 id */
+        val selectedSources: Set<String> = ProxySourceRegistry.defaultSelectedIds,
+        /** 各源最近一次抓取状态（key 为源 id），未抓取过为空 */
+        val sourceStatus: Map<String, SourceFetchStatus> = emptyMap()
     )
 }

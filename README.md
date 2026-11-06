@@ -13,6 +13,7 @@ vlocation 是一个面向 Android 定位测试场景的开源虚拟定位工具�
 - **模拟定位**：输出经纬度、精度、海拔、速度、方位角、时间戳，模拟真实 GPS 参数
 - **地图选点**：基于 MapLibre + OpenStreetMap，支持拖动地图、点击定位、获取经纬度
 - **地点搜索**：Nominatim 搜索 API，支持输入地点、返回候选、地图定位
+- **代理源选择器**：自动获取代理支持多选合并（proxifly / ProxyScrape / proxyfreeonly / ProxyClean / Geonode 官方 API，均为国内 CN 节点），合并按 ip:port 去重后实测（小红书可达性 + 真实归属地），失败的源单独标出，不静默兜底
 - **随机漂移**：围绕中心点的小范围随机漂移，模拟自然移动，参数内部固定
 - **前台服务**：Android Foreground Service，常驻通知显示模拟位置
 - **开始/停止模拟**：权限检查 → Mock Location 状态检查 → 加载配置 → 启动服务 → 发送模拟位置

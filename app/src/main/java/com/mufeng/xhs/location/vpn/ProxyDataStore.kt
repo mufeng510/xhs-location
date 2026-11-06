@@ -10,12 +10,17 @@ const val KEY_PROXY_PORT = "proxy_port"
 const val KEY_PROXY_TYPE = "proxy_type"
 const val KEY_PROXY_ENABLED = "proxy_enabled"
 const val KEY_PROXY_LAST_UPDATED = "proxy_last_updated"
+const val KEY_PROXY_SOURCES = "proxy_sources"
 
 interface ProxyDataStore {
     suspend fun getProxyConfig(): ProxyConfig
     suspend fun saveProxyConfig(config: ProxyConfig)
     val proxyConfigFlow: Flow<ProxyConfig>
     suspend fun clearProxyConfig()
+
+    /** 用户选择的代理源 id；首次使用返回 [ProxySourceRegistry.defaultSelectedIds] */
+    suspend fun getProxySources(): Set<String>
+    suspend fun saveProxySources(ids: Set<String>)
 }
 
 class DefaultProxyDataStore(
@@ -49,6 +54,18 @@ class DefaultProxyDataStore(
                 delay(1000)
             }
         }
+
+    override suspend fun getProxySources(): Set<String> {
+        val stored = prefs.getStringSet(KEY_PROXY_SOURCES, null)
+            ?.filter { ProxySourceRegistry.isKnown(it) }
+            ?.toSet()
+        return if (stored.isNullOrEmpty()) ProxySourceRegistry.defaultSelectedIds else stored
+    }
+
+    override suspend fun saveProxySources(ids: Set<String>) {
+        val cleaned = ids.filter { ProxySourceRegistry.isKnown(it) }.toSet()
+        prefs.edit().putStringSet(KEY_PROXY_SOURCES, cleaned).apply()
+    }
 
     override suspend fun clearProxyConfig() {
         val editor = prefs.edit()

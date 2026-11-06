@@ -293,7 +293,7 @@ fun ProxySettingsScreen() {
                         )
                         Button(
                             onClick = { viewModel.fetchFreshProxies() },
-                            enabled = !uiState.fetching,
+                            enabled = !uiState.fetching && uiState.selectedSources.isNotEmpty(),
                             contentPadding = PaddingValues(horizontal = 16.dp)
                         ) {
                             Text(
@@ -307,6 +307,76 @@ fun ProxySettingsScreen() {
                     Text(
                         text = stringResource(R.string.vpn_auto_fetch_desc),
                         style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    // ========== 代理源选择器 ==========
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = stringResource(R.string.vpn_sources_title) +
+                                "（已选 ${uiState.selectedSources.size}/${ProxySourceRegistry.all.size}）",
+                            style = MaterialTheme.typography.titleSmall
+                        )
+                        Row {
+                            TextButton(
+                                onClick = { viewModel.selectAllSources() },
+                                contentPadding = PaddingValues(horizontal = 8.dp)
+                            ) { Text(stringResource(R.string.vpn_sources_select_all)) }
+                            TextButton(
+                                onClick = { viewModel.resetSources() },
+                                contentPadding = PaddingValues(horizontal = 8.dp)
+                            ) { Text(stringResource(R.string.vpn_sources_reset)) }
+                        }
+                    }
+                    ProxySourceRegistry.all.forEach { source ->
+                        val checked = source.id in uiState.selectedSources
+                        val status = uiState.sourceStatus[source.id]
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { viewModel.toggleSource(source.id) }
+                                .padding(vertical = 2.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Checkbox(
+                                checked = checked,
+                                onCheckedChange = { viewModel.toggleSource(source.id) }
+                            )
+                            Column(modifier = Modifier
+                                .weight(1f)
+                                .padding(start = 4.dp)) {
+                                Text(
+                                    text = source.name,
+                                    style = MaterialTheme.typography.bodyMedium
+                                )
+                                Text(
+                                    text = source.desc,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                when (status) {
+                                    is SourceFetchStatus.Ok -> Text(
+                                        text = stringResource(R.string.vpn_source_ok_count, status.candidateCount),
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.primary
+                                    )
+                                    is SourceFetchStatus.Failed -> Text(
+                                        text = stringResource(R.string.vpn_source_failed, status.message),
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.error
+                                    )
+                                    else -> Unit
+                                }
+                            }
+                        }
+                    }
+                    Text(
+                        text = stringResource(R.string.vpn_sources_hint),
+                        style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     if (uiState.fetching) {
