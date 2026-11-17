@@ -186,3 +186,4 @@ API Token 首次启动自动生成存 SQLite（**请务必挂载 volume**，否�
 | 2026-11-17 | 初版确认；10 项决策落定 | 需求评审 | 初始范围 |
 | 2026-11-17 | 访问方式改为“LAN 直连、反代由用户负责”；配置最小化：仅必填 `ADMIN_PASSWORD`，API Token 自动生成存 SQLite；管理页展示 Token + vlocation://setup 配对二维码；App 侧扫码填入配置；阶段 2 并入阶段 1 | 用户追加备注 | API 与部署章节、AC（§7/§10/§11/§12）、阶段 3 新增扫码模块 |
 | 2026-11-17 | 阶段编号拨正：阶段 2=App 改造（即原“阶段 3”），阶段 3=实测验收（即原“阶段 4”）；阶段 1 标记 b173abc 完成 | 编号歧义（用户问“阶段二”） | §12、本文档其余阶段引用 |
+| 2026-11-17 | CI 增加 docker-publish 任务：main/tag 推送自动构建并推送 GHCR 镜像（:latest / :main / :sha-* / :tag）；release-build 增加 APK 更名为 `vlocation-<ref>.apk`；tag 触发 Release 附 APK | 用户要求“自动发布 Docker 镜像和手机端安装包文件” | .github/workflows/ci.yml、README CI/CD 章节 |

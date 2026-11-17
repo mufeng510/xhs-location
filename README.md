@@ -152,7 +152,17 @@ docs/
 ## CI/CD
 
 - **Pull Request**：Gradle 构建 + 单元测试 + 插桩测试
-- **Main 分支**：自动构建 Release APK 并生成 Release Artifact
+- **Main 分支推送**：自动构建 Release APK（CI 无私有 keystore，以 debug 签名兜底），
+  产物以 `vlocation-main-<run_number>.apk` 上传为 Artifact；同时构建并推送 Docker 镜像到
+  `ghcr.io/mufeng510/vlocation-proxy-server`（标签：`latest`、`main`、`sha-xxxxxxx`）
+- **Tag（v*）推送**：自动构建 APK，创建 GitHub Release 并附带
+  `vlocation-<tag>.apk` 安装包文件；同时推送 GHCR 镜像（标签：`<tag>`、`latest`、`sha-xxxxxxx`）
+
+> ⚠️ **签名说明**：CI 中 release APK 使用自动生成的 debug keystore 签名，**每次运行签名不同**，
+> 不同构建的 APK 不能互相覆盖安装（需先卸载）。如需连续覆盖升级，请把正式 keystore 以 Secrets
+> （如 `RELEASE_KEYSTORE_BASE64` + 密码们）提供给 CI，由 build.gradle.kts 读取。
+
+> 安装 APK：tag 触发后到仓库 Releases 页面下载 `vlocation-<tag>.apk` 安装即可。
 
 ## 协议
 
