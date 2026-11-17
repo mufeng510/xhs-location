@@ -1,0 +1,17 @@
+# vlocation 代理池服务 —— 配置只有一项必填：ADMIN_PASSWORD
+# 使用：cp .env.example .env，编辑 ADMIN_PASSWORD，然后 docker compose up -d
+services:
+  proxy-server:
+    build: .
+    image: vlocation-proxy-server:1.0.0
+    container_name: vlocation-proxy-server
+    restart: unless-stopped
+    ports:
+      - "8080:8080"   # 如需改宿主端口："8888:8080"
+    environment:
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:?请先 cp .env.example .env 并设置 ADMIN_PASSWORD}
+      # 可选（带默认值，一般不用改）：
+      # REFRESH_MINUTES: "20"
+      # TZ: "Asia/Shanghai"
+    volumes:
+      - ./data:/data    # 持久化 SQLite（Token 保存在这里！换 volume 会重新生成 Token）

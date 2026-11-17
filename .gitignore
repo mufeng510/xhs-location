@@ -44,3 +44,13 @@ fastlane/test_output
 # Sensitive
 secrets.properties
 signing.properties
+
+# proxy-server (NAS 代理池服务)
+proxy-server/.env
+proxy-server/data/
+proxy-server/__pycache__/
+proxy-server/app/__pycache__/
+*.xdb
+proxy-server/.pytest_cache/
+proxy-server/**/__pycache__/
+.pytest_cache/
