@@ -1,23 +1,15 @@
 package com.mufeng.xhs.location.vpn
 
-import kotlinx.coroutines.async
-import kotlinx.coroutines.coroutineScope
-import kotlinx.coroutines.Dispatchers
-
 /**
- * 代理自动获取器。
+ * 代理探测器。
  *
- * 数据源：由用户在设置页选择（见 [ProxySourceRegistry]），拉取后合并去重、轮转取样，
- * 不再“主源失败自动切兜底”——每个源的状态单独上报给 UI 展示。
+ * 节点列表由 NAS 代理池服务下发（见 [NasProxyFetcher]），本地无需再抓取/实测
+ * 除非用户主动“测试连接”某节点。
  *
- * 获取后对每条候选做两项实测（经代理发起，不是本地直连）：
+ * 实测能力（保留供“测试连接”使用）：
  *  1. 小红书可达性：经代理隧道对 edith.xiaohongshu.com:443 做 TLS 握手 + HTTP GET，
- *     返回 2xx/3xx/4xx/5xx 即视为可访问小红书（主要用途就是刷小红书）；
- *  2. 真实归属地：经代理隧道请求 http://myip.ipip.net，解析 "当前 IP：x.x.x.x  来自于：中国 …"，
- *     作为节点的真实地区标注（API 标注大多过时/不准，例如「北京-电信」实测在湖北十堰）。
- *
- * 地区归类优先采用实测归属地（含省份关键词），其次回退 API 的城市拼音。
- * 结果按“小红书可达优先”排序；小红书不可达的节点仍保留展示并标记，方便用户筛选。
+ *     返回 2xx/3xx/4xx/5xx 即视为可访问小红书；
+ *  2. 真实归属地：经代理隧道请求 http://myip.ipip.net，解析 "当前 IP：x.x.x.x  来自于：中国 …"。
  */
 class ProxyFetcher private constructor() {
 
@@ -30,96 +22,13 @@ class ProxyFetcher private constructor() {
         private const val REGION_HOST = "myip.ipip.net"
         private const val REGION_PORT = 80
 
-        /** 每个地区最多保留的节点数 */
-        private const val MAX_PER_REGION = 12
-
-        /** 并发探测数 */
-        private const val PROBE_CONCURRENCY = 16
-
         /** 探测超时（毫秒） */
         private const val PROBE_TIMEOUT_MS = 8000
 
         fun create(): ProxyFetcher = ProxyFetcher()
     }
 
-    /**
-     * 从所选源获取候选并实测（小红书可达性 + 真实归属地）。
-     *
-     * @param sourceIds 用户选中的源 id（见 ProxySourceRegistry）；为空时直接返回空结果
-     * @return [FetchResult.proxies] 为实测后的节点列表；[FetchResult.sourceStatus] 为各源抓取状态
-     */
-    suspend fun fetchFromSources(sourceIds: Set<String>): FetchResult {
-        val outcome = fetchCandidates(sourceIds)
-        if (outcome.candidates.isEmpty()) {
-            return FetchResult(emptyList(), outcome.sourceStatus)
-        }
-
-        val tested = probeAll(outcome.candidates)
-
-        // 优先只返回小红书可达的节点（软件就服务小红书，死节点没有展示价值）；
-        // 若本批全部不可达，则返回全部并让 UI 提示"本批均不可达，建议重试"。
-        val reachable = tested.filter { it.xhsReachable }
-        val filtered = if (reachable.isNotEmpty()) reachable else tested
-
-        // 按实测归属地分类（拿不到实测结果时回退 API 城市），每地区限量
-        val grouped = groupByRegion(filtered)
-        return FetchResult(grouped, outcome.sourceStatus)
-    }
-
-    /** 按归属地分组、每组限量，返回扁平列表（保持每组内“可达优先”顺序） */
-    private fun groupByRegion(filtered: List<BuiltinProxies.BuiltinProxy>): List<BuiltinProxies.BuiltinProxy> =
-        filtered.groupBy { p ->
-            val rd = p.regionDetail
-            if (rd.isBlank() || rd == "未知归属") {
-                // 归类仍用来源数据里的 city 字段（来自拼音/英文城市名匹配或默认值）
-                when {
-                    p.city.startsWith("北京") -> "北京"
-                    p.city.startsWith("上海") -> "上海"
-                    p.city == "其他地区" -> "其他地区"
-                    p.city.startsWith("广") -> "广东"
-                    p.city.startsWith("杭") || p.city.startsWith("浙") -> "浙江"
-                    p.city.startsWith("成") || p.city.startsWith("四") -> "四川"
-                    else -> p.city
-                }
-            } else {
-                ProxyRegion.classifyByRegionDetail(rd).first
-            }
-        }.values.flatMap { it.take(MAX_PER_REGION) }
-
-    // ========== 实测探测 ==========
-
-    private suspend fun probeAll(candidates: List<BuiltinProxies.BuiltinProxy>): List<BuiltinProxies.BuiltinProxy> =
-        coroutineScope {
-            val results = java.util.Collections.synchronizedList(mutableListOf<BuiltinProxies.BuiltinProxy>())
-            candidates.chunked(PROBE_CONCURRENCY).forEach { chunk ->
-                chunk.map { proxy ->
-                    async(Dispatchers.IO) {
-                        probeOne(proxy)
-                    }
-                }.forEach { deferred -> deferred.await()?.let { results.add(it) } }
-            }
-            // 小红书可达的节点置顶
-            results.sortByDescending { it.xhsReachable }
-            results
-        }
-
-    private fun probeOne(proxy: BuiltinProxies.BuiltinProxy): BuiltinProxies.BuiltinProxy? {
-        val xhsOk = probeXiaohongshu(proxy)
-        val regionDetail = probeRegionDetail(proxy) ?: "未知归属"
-        val (region, lat, lon) = if (regionDetail != "未知归属") {
-            ProxyRegion.classifyByRegionDetail(regionDetail)
-        } else {
-            Triple(proxy.city, proxy.latitude, proxy.longitude)
-        }
-        return proxy.copy(
-            label = "$region · $regionDetail",
-            latitude = lat,
-            longitude = lon,
-            city = region,
-            xhsReachable = xhsOk,
-            regionDetail = regionDetail
-        )
-    }
+    // ========== 实测（供“测试连接”使用；列表正常来自 NAS） ==========
 
     /**
      * 经代理测试小红书 API 是否可访问：TLS 握手 + HTTP GET /，

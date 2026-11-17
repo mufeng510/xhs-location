@@ -10,7 +10,17 @@ const val KEY_PROXY_PORT = "proxy_port"
 const val KEY_PROXY_TYPE = "proxy_type"
 const val KEY_PROXY_ENABLED = "proxy_enabled"
 const val KEY_PROXY_LAST_UPDATED = "proxy_last_updated"
-const val KEY_PROXY_SOURCES = "proxy_sources"
+const val KEY_NAS_URL = "nas_url"
+const val KEY_NAS_TOKEN = "nas_token"
+const val KEY_NAS_CACHE_PROXIES = "nas_cache_proxies"
+const val KEY_NAS_CACHE_STATUS = "nas_cache_status"
+const val KEY_NAS_CACHE_AT = "nas_cache_at"
+
+/** NAS 代理池服务配置（用户在设置页填写或扫码导入） */
+data class NasConfig(val url: String, val token: String)
+
+/** NAS 缓存：上次成功拉取的原始 JSON + 本地时间戳 */
+data class NasCache(val proxiesJson: String, val statusJson: String, val timestampMs: Long)
 
 interface ProxyDataStore {
     suspend fun getProxyConfig(): ProxyConfig
@@ -18,9 +28,15 @@ interface ProxyDataStore {
     val proxyConfigFlow: Flow<ProxyConfig>
     suspend fun clearProxyConfig()
 
-    /** 用户选择的代理源 id；首次使用返回 [ProxySourceRegistry.defaultSelectedIds] */
-    suspend fun getProxySources(): Set<String>
-    suspend fun saveProxySources(ids: Set<String>)
+    /** NAS 配置；未配置时 url/token 均为空串 */
+    suspend fun getNasConfig(): NasConfig
+    suspend fun saveNasConfig(config: NasConfig)
+    suspend fun clearNasConfig()
+
+    /** NAS 缓存读写；未缓存时 getNasCache() 返回 null */
+    suspend fun getNasCache(): NasCache?
+    suspend fun saveNasCache(proxiesJson: String, statusJson: String)
+    suspend fun clearNasCache()
 }
 
 class DefaultProxyDataStore(
@@ -55,18 +71,6 @@ class DefaultProxyDataStore(
             }
         }
 
-    override suspend fun getProxySources(): Set<String> {
-        val stored = prefs.getStringSet(KEY_PROXY_SOURCES, null)
-            ?.filter { ProxySourceRegistry.isKnown(it) }
-            ?.toSet()
-        return if (stored.isNullOrEmpty()) ProxySourceRegistry.defaultSelectedIds else stored
-    }
-
-    override suspend fun saveProxySources(ids: Set<String>) {
-        val cleaned = ids.filter { ProxySourceRegistry.isKnown(it) }.toSet()
-        prefs.edit().putStringSet(KEY_PROXY_SOURCES, cleaned).apply()
-    }
-
     override suspend fun clearProxyConfig() {
         val editor = prefs.edit()
         editor.remove(KEY_PROXY_SERVER)
@@ -75,5 +79,48 @@ class DefaultProxyDataStore(
         editor.remove(KEY_PROXY_ENABLED)
         editor.remove(KEY_PROXY_LAST_UPDATED)
         editor.apply()
+    }
+
+    override suspend fun getNasConfig(): NasConfig =
+        NasConfig(
+            url = prefs.getString(KEY_NAS_URL, "") ?: "",
+            token = prefs.getString(KEY_NAS_TOKEN, "") ?: ""
+        )
+
+    override suspend fun saveNasConfig(config: NasConfig) {
+        prefs.edit()
+            .putString(KEY_NAS_URL, config.url.trim().trimEnd('/'))
+            .putString(KEY_NAS_TOKEN, config.token.trim())
+            .apply()
+    }
+
+    override suspend fun clearNasConfig() {
+        prefs.edit()
+            .remove(KEY_NAS_URL)
+            .remove(KEY_NAS_TOKEN)
+            .apply()
+    }
+
+    override suspend fun getNasCache(): NasCache? {
+        val proxies = prefs.getString(KEY_NAS_CACHE_PROXIES, null) ?: return null
+        val status = prefs.getString(KEY_NAS_CACHE_STATUS, "") ?: ""
+        val at = prefs.getLong(KEY_NAS_CACHE_AT, 0L)
+        return NasCache(proxies, status, at)
+    }
+
+    override suspend fun saveNasCache(proxiesJson: String, statusJson: String) {
+        prefs.edit()
+            .putString(KEY_NAS_CACHE_PROXIES, proxiesJson)
+            .putString(KEY_NAS_CACHE_STATUS, statusJson)
+            .putLong(KEY_NAS_CACHE_AT, System.currentTimeMillis())
+            .apply()
+    }
+
+    override suspend fun clearNasCache() {
+        prefs.edit()
+            .remove(KEY_NAS_CACHE_PROXIES)
+            .remove(KEY_NAS_CACHE_STATUS)
+            .remove(KEY_NAS_CACHE_AT)
+            .apply()
     }
 }

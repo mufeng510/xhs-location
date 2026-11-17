@@ -1,7 +1,6 @@
 package com.mufeng.xhs.location.vpn
 
 import android.content.Context
-import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.mufeng.xhs.location.data.datastore.LocationConfig
@@ -79,84 +78,160 @@ class ProxyViewModel @Inject constructor(
         viewModelScope.launch {
             val config = proxyDataStore.getProxyConfig()
             val locationConfig = locationRepository.getLocationConfig()
-            val sources = proxyDataStore.getProxySources()
+            val nasConfig = proxyDataStore.getNasConfig()
+            val cache = proxyDataStore.getNasCache()
+            val cachedProxies = cache?.let { NasJson.parseProxies(it.proxiesJson) } ?: emptyList()
+            val cachedStatus = cache?.statusJson?.let { NasJson.parseStatus(it) }
+            val configured = nasConfig.url.isNotBlank() && nasConfig.token.isNotBlank()
             _uiState.value = _uiState.value.copy(
                 config = config,
                 locationConfig = locationConfig,
-                selectedSources = sources,
+                nasUrl = nasConfig.url,
+                nasToken = nasConfig.token,
+                nasConfigured = configured,
+                freshProxies = cachedProxies,
+                nasTotal = cachedStatus?.total ?: cachedProxies.size,
+                nasReachable = cachedStatus?.reachable ?: cachedProxies.count { it.xhsReachable },
+                nasLastUpdateIso = cachedStatus?.lastUpdateIso,
+                nasLastFetchMs = cache?.timestampMs ?: 0L,
                 isLoading = false
             )
-            // 加载完成后再自动获取，保证用的是用户保存的源选择
-            fetchFreshProxies()
+            // 加载完成后再自动获取：缓存先展示，NAS 后台静默刷新
+            if (configured) fetchFromNas()
         }
     }
 
-    // ========== 自动获取代理 ==========
+    // ========== NAS 代理池 ==========
 
-    /** 切换某个代理源的选中状态并持久化；至少允许清空（清空时获取按钮禁用） */
-    fun toggleSource(id: String) {
-        val current = _uiState.value.selectedSources
-        val updated = if (id in current) current - id else current + id
-        _uiState.value = _uiState.value.copy(selectedSources = updated)
-        viewModelScope.launch { proxyDataStore.saveProxySources(updated) }
-    }
-
-    /** 勾选全部源 */
-    fun selectAllSources() {
-        setSources(ProxySourceRegistry.all.map { it.id }.toSet())
-    }
-
-    /** 恢复默认勾选（proxifly + ProxyScrape + proxyfreeonly + ProxyClean） */
-    fun resetSources() {
-        setSources(ProxySourceRegistry.defaultSelectedIds)
-    }
-
-    private fun setSources(ids: Set<String>) {
-        _uiState.value = _uiState.value.copy(selectedSources = ids)
-        viewModelScope.launch { proxyDataStore.saveProxySources(ids) }
-    }
-
-    fun fetchFreshProxies() {
-        if (_uiState.value.fetching) return
-        val sourceIds = _uiState.value.selectedSources
-        if (sourceIds.isEmpty()) {
-            _uiState.value = _uiState.value.copy(
-                error = "请至少选择一个代理源。"
-            )
+    /** 从 NAS 拉取节点列表（缓存先展示）；失败保留缓存并提示 */
+    fun fetchFromNas() {
+        val state = _uiState.value
+        if (state.fetching) return
+        val config = currentNasConfig()
+        if (config == null) {
+            _uiState.value = state.copy(error = "未配置 NAS 代理池服务，请先在下方“NAS 代理池配置”中填写地址和 Token。")
             return
         }
-        // 标记所选源为抓取中（已展示过结果的源保留 Ok 状态直到本次完成）
-        _uiState.value = _uiState.value.copy(fetching = true, error = null)
+        _uiState.value = state.copy(fetching = true, error = null)
         viewModelScope.launch {
-            try {
-                val result = proxyFetcher.fetchFromSources(sourceIds)
-                val fresh = result.proxies
-                val matched = fresh.find {
-                    it.server == _uiState.value.config.server && it.port == _uiState.value.config.port
-                }
-                val allUnreachable = fresh.isNotEmpty() && fresh.none { it.xhsReachable }
-                val failedSources = result.sourceStatus.filterValues { it is SourceFetchStatus.Failed }.keys
-                _uiState.value = _uiState.value.copy(
-                    fetching = false,
-                    freshProxies = fresh,
-                    sourceStatus = result.sourceStatus,
-                    selectedXhsReachable = matched?.xhsReachable ?: _uiState.value.selectedXhsReachable,
-                    error = when {
-                        fresh.isEmpty() && failedSources.isNotEmpty() ->
-                            "所选源均不可用（${failedSources.size} 个失败），已保留内置节点，可继续选择使用，或更换代理源后重试。"
-                        fresh.isEmpty() -> "未能获取到可用代理，已保留内置节点，可继续选择使用。"
-                        allUnreachable -> "本批自动获取的节点均无法访问小红书（免费代理常见），可刷新重试，或切换内置/手动输入节点。"
-                        else -> null
-                    }
-                )
-            } catch (e: Exception) {
-                Log.e("ProxyViewModel", "fetchFreshProxies failed", e)
-                _uiState.value = _uiState.value.copy(
-                    fetching = false,
-                    error = "获取代理失败：${e.message ?: "网络不可达"}，已保留内置节点，可继续选择使用。"
-                )
+            val outcome = withContext(Dispatchers.IO) {
+                runCatching { NasProxyClient.fetch(config.url, config.token) }
             }
+            outcome.fold(
+                onSuccess = { fetch ->
+                    proxyDataStore.saveNasCache(
+                        proxiesJson = NasJson.serializeProxies(fetch.proxies),
+                        statusJson = NasJson.serializeStatus(fetch.status)
+                    )
+                    applyFreshProxies(fetch.proxies, fetch.status, null)
+                },
+                onFailure = { e ->
+                    val cached = _uiState.value.freshProxies
+                    _uiState.value = _uiState.value.copy(
+                        fetching = false,
+                        error = "NAS 获取失败：${e.message ?: "网络不可达"}" +
+                            if (cached.isNotEmpty()) "（已显示本地缓存的 ${cached.size} 个节点）" else ""
+                    )
+                }
+            )
         }
+    }
+
+    private fun currentNasConfig(): NasConfig? {
+        val url = _uiState.value.nasUrl.trim().trimEnd('/')
+        val token = _uiState.value.nasToken.trim()
+        return if (url.isBlank() || token.isBlank()) null else NasConfig(url, token)
+    }
+
+    private fun applyFreshProxies(
+        fresh: List<BuiltinProxies.BuiltinProxy>,
+        status: NasStatus,
+        error: String?
+    ) {
+        val matched = fresh.find {
+            it.server == _uiState.value.config.server && it.port == _uiState.value.config.port
+        }
+        val allUnreachable = fresh.isNotEmpty() && fresh.none { it.xhsReachable }
+        _uiState.value = _uiState.value.copy(
+            fetching = false,
+            freshProxies = fresh,
+            nasTotal = status.total,
+            nasReachable = status.reachable,
+            nasLastUpdateIso = status.lastUpdateIso,
+            nasLastFetchMs = System.currentTimeMillis(),
+            selectedXhsReachable = matched?.xhsReachable ?: _uiState.value.selectedXhsReachable,
+            error = when {
+                error != null -> error
+                fresh.isEmpty() -> "NAS 代理池为空：服务端正在抓取/实测，请稍后刷新（约 1 分钟）。"
+                allUnreachable -> "本批节点均无法访问小红书（免费代理常见），可稍后刷新，或切换内置/手动节点。"
+                else -> null
+            }
+        )
+    }
+
+    /** 测试并保存 NAS 配置：连通鉴权通过 → 保存并立即拉取一次 */
+    fun testAndSaveNas(url: String, token: String) {
+        _uiState.value = _uiState.value.copy(nasTestResult = "测试中…")
+        viewModelScope.launch {
+            val trimmed = url.trim().trimEnd('/')
+            val normalized = NasConfig(trimmed, token.trim())
+            val outcome = withContext(Dispatchers.IO) {
+                runCatching { NasProxyClient.fetchStatus(normalized.url, normalized.token) }
+            }
+            outcome.fold(
+                onSuccess = {
+                    proxyDataStore.saveNasConfig(normalized)
+                    _uiState.value = _uiState.value.copy(
+                        nasUrl = normalized.url,
+                        nasToken = normalized.token,
+                        nasConfigured = true,
+                        nasTestResult = null
+                    )
+                    fetchFromNas()
+                },
+                onFailure = { e ->
+                    _uiState.value = _uiState.value.copy(
+                        nasTestResult = "连接失败：${e.message ?: "网络不可达"}"
+                    )
+                }
+            )
+        }
+    }
+
+    /** 扫码配对：解析 vlocation://setup?url=&token=，保存并拉取。返回 (成功, 消息) */
+    fun applyNasQr(raw: String): Pair<Boolean, String> {
+        val config = NasQr.parse(raw) ?: return false to "不是有效的 vlocation 配对二维码"
+        viewModelScope.launch {
+            proxyDataStore.saveNasConfig(config)
+        }
+        _uiState.value = _uiState.value.copy(
+            nasUrl = config.url,
+            nasToken = config.token,
+            nasConfigured = true,
+            nasTestResult = "已导入 NAS 配置，正在拉取节点…"
+        )
+        fetchFromNas()
+        return true to "已保存 NAS 配置"
+    }
+
+    /** 清除 NAS 配置与缓存 */
+    fun clearNas() {
+        viewModelScope.launch {
+            proxyDataStore.clearNasConfig()
+            proxyDataStore.clearNasCache()
+        }
+        _uiState.value = _uiState.value.copy(
+            nasUrl = "",
+            nasToken = "",
+            nasConfigured = false,
+            nasTotal = 0,
+            nasReachable = 0,
+            nasLastUpdateIso = null,
+            nasLastFetchMs = 0L,
+            freshProxies = emptyList(),
+            nasTestResult = null,
+            error = null
+        )
     }
 
     // ========== 选择代理节点 ==========
@@ -401,9 +476,15 @@ class ProxyViewModel @Inject constructor(
         val selectedXhsReachable: Boolean? = null,
         val xhsTestResult: String? = null,
         val searchResults: List<OfflinePlaceDatabase.OfflinePlace> = emptyList(),
-        /** 用户选中的代理源 id */
-        val selectedSources: Set<String> = ProxySourceRegistry.defaultSelectedIds,
-        /** 各源最近一次抓取状态（key 为源 id），未抓取过为空 */
-        val sourceStatus: Map<String, SourceFetchStatus> = emptyMap()
+        /** NAS 代理池服务配置与状态（输入框直接绑 uiState，无需本地变量） */
+        val nasUrl: String = "",
+        val nasToken: String = "",
+        val nasConfigured: Boolean = false,
+        val nasLastUpdateIso: String? = null,
+        val nasLastFetchMs: Long = 0L,
+        val nasTotal: Int = 0,
+        val nasReachable: Int = 0,
+        /** “测试并保存”的结果提示（null = 空闲） */
+        val nasTestResult: String? = null
     )
 }

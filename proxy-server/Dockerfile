@@ -8,7 +8,7 @@ ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     TZ=Asia/Shanghai \
     PROXY_DB=/data/proxy.db \
-    IP2REGION_XDB=/data/ip2region_v4.xdb
+    IP2REGION_XDB=/opt/ip2region/ip2region_v4.xdb
 
 WORKDIR /srv/proxy-server
 
@@ -16,13 +16,14 @@ RUN apt-get update \
     && apt-get install -y --no-install-recommends curl ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
-# ip2region 离线归属地库（11MB），固定版本 + SHA256 校验
+# ip2region 离线归属地库（11MB）。注意：不能放 /data——用户 bind mount 会覆盖它；
+# 这里放只读 /opt 目录，归属地数据进镜像、运行数据进 volume。
 ARG IP2REGION_URL=https://raw.githubusercontent.com/lionsoul2014/ip2region/master/data/ip2region_v4.xdb
 ARG IP2REGION_SHA256=a12ad5aca1277d67e525efcda531a20cc0d654ff4f087150d45bc17fca4bc260
-RUN mkdir -p /data \
-    && curl -fsSL -o /data/ip2region_v4.xdb "$IP2REGION_URL" \
+RUN mkdir -p /opt/ip2region \
+    && curl -fsSL -o /opt/ip2region/ip2region_v4.xdb "$IP2REGION_URL" \
     && if [ -n "$IP2REGION_SHA256" ]; then \
-         echo "$IP2REGION_SHA256  /data/ip2region_v4.xdb" | sha256sum -c -; \
+         echo "$IP2REGION_SHA256  /opt/ip2region/ip2region_v4.xdb" | sha256sum -c -; \
        fi
 
 COPY requirements.txt .
@@ -32,7 +33,7 @@ RUN pip install --no-cache-dir --index-url "$PIP_INDEX_URL" -r requirements.txt
 COPY app ./app
 
 EXPOSE 8080
-VOLUME ["/data"]
+VOLUME ["/data"]  # 仅 SQLite；归属地库在 /opt/ip2region（镜像只读，不受 volume 覆盖）
 
 HEALTHCHECK --interval=60s --timeout=5s --start-period=90s --retries=3 \
     CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/healthz', timeout=3).read()" || exit 1

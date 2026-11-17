@@ -7,6 +7,9 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -81,6 +84,38 @@ fun ProxySettingsScreen() {
 
     // 城市搜索输入框
     var cityQuery by remember { mutableStateOf("") }
+
+    var nasUrlText by remember { mutableStateOf(uiState.nasUrl) }
+    var nasTokenText by remember { mutableStateOf(uiState.nasToken) }
+    LaunchedEffect(uiState.nasUrl, uiState.nasToken) {
+        nasUrlText = uiState.nasUrl
+        nasTokenText = uiState.nasToken
+    }
+
+    val activity = context as? android.app.Activity
+    val onScanClicked: () -> Unit = {
+        if (activity != null) {
+            val scanner = com.google.mlkit.vision.codescanner.GmsBarcodeScanning.getClient(activity)
+            scanner.startScan()
+                .addOnSuccessListener { barcode ->
+                    barcode.rawValue?.let { raw ->
+                        val (ok, msg) = viewModel.applyNasQr(raw)
+                        android.widget.Toast.makeText(
+                            context,
+                            if (ok) "NAS 配对成功" else msg,
+                            android.widget.Toast.LENGTH_SHORT
+                        ).show()
+                    }
+                }
+                .addOnFailureListener {
+                    android.widget.Toast.makeText(
+                        context,
+                        "扫码失败：${it.message ?: "未知错误"}",
+                        android.widget.Toast.LENGTH_SHORT
+                    ).show()
+                }
+        }
+    }
 
     var selectedRegion by remember { mutableStateOf("北京") }
     var builtinExpanded by remember { mutableStateOf(true) }
@@ -292,8 +327,8 @@ fun ProxySettingsScreen() {
                             style = MaterialTheme.typography.titleMedium
                         )
                         Button(
-                            onClick = { viewModel.fetchFreshProxies() },
-                            enabled = !uiState.fetching && uiState.selectedSources.isNotEmpty(),
+                            onClick = { viewModel.fetchFromNas() },
+                            enabled = !uiState.fetching && uiState.nasConfigured,
                             contentPadding = PaddingValues(horizontal = 16.dp)
                         ) {
                             Text(
@@ -309,81 +344,29 @@ fun ProxySettingsScreen() {
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
-                    Spacer(modifier = Modifier.height(12.dp))
-                    // ========== 代理源选择器 ==========
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    if (!uiState.nasConfigured) {
                         Text(
-                            text = stringResource(R.string.vpn_sources_title) +
-                                "（已选 ${uiState.selectedSources.size}/${ProxySourceRegistry.all.size}）",
-                            style = MaterialTheme.typography.titleSmall
+                            text = stringResource(R.string.vpn_nas_unconfigured),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
-                        Row {
-                            TextButton(
-                                onClick = { viewModel.selectAllSources() },
-                                contentPadding = PaddingValues(horizontal = 8.dp)
-                            ) { Text(stringResource(R.string.vpn_sources_select_all)) }
-                            TextButton(
-                                onClick = { viewModel.resetSources() },
-                                contentPadding = PaddingValues(horizontal = 8.dp)
-                            ) { Text(stringResource(R.string.vpn_sources_reset)) }
-                        }
+                    } else {
+                        Text(
+                            text = stringResource(
+                                R.string.vpn_nas_status,
+                                relTime(uiState.nasLastFetchMs),
+                                uiState.nasReachable,
+                                uiState.nasTotal
+                            ),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.primary
+                        )
                     }
-                    ProxySourceRegistry.all.forEach { source ->
-                        val checked = source.id in uiState.selectedSources
-                        val status = uiState.sourceStatus[source.id]
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable { viewModel.toggleSource(source.id) }
-                                .padding(vertical = 2.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Checkbox(
-                                checked = checked,
-                                onCheckedChange = { viewModel.toggleSource(source.id) }
-                            )
-                            Column(modifier = Modifier
-                                .weight(1f)
-                                .padding(start = 4.dp)) {
-                                Text(
-                                    text = source.name,
-                                    style = MaterialTheme.typography.bodyMedium
-                                )
-                                Text(
-                                    text = source.desc,
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                                when (status) {
-                                    is SourceFetchStatus.Ok -> Text(
-                                        text = stringResource(R.string.vpn_source_ok_count, status.candidateCount),
-                                        style = MaterialTheme.typography.labelSmall,
-                                        color = MaterialTheme.colorScheme.primary
-                                    )
-                                    is SourceFetchStatus.Failed -> Text(
-                                        text = stringResource(R.string.vpn_source_failed, status.message),
-                                        style = MaterialTheme.typography.labelSmall,
-                                        color = MaterialTheme.colorScheme.error
-                                    )
-                                    else -> Unit
-                                }
-                            }
-                        }
-                    }
-                    Text(
-                        text = stringResource(R.string.vpn_sources_hint),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
                     if (uiState.fetching) {
                         Spacer(modifier = Modifier.height(12.dp))
                         LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
                     }
-                    val fresh = uiState.freshProxies
                     if (fresh.isNotEmpty()) {
                         Spacer(modifier = Modifier.height(12.dp))
                         Text(
@@ -420,6 +403,81 @@ fun ProxySettingsScreen() {
                                 )
                             }
                         }
+                    }
+                }
+            }
+        }
+
+        // ========== NAS 代理池配置 ==========
+        item {
+            Card(modifier = Modifier.fillMaxWidth()) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text(
+                        text = stringResource(R.string.vpn_nas_title),
+                        style = MaterialTheme.typography.titleMedium
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = stringResource(R.string.vpn_nas_desc),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    OutlinedTextField(
+                        value = nasUrlText,
+                        onValueChange = { nasUrlText = it },
+                        label = { Text(text = stringResource(R.string.vpn_nas_url_label)) },
+                        placeholder = { Text(text = stringResource(R.string.vpn_nas_url_placeholder)) },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    OutlinedTextField(
+                        value = nasTokenText,
+                        onValueChange = { nasTokenText = it },
+                        label = { Text(text = stringResource(R.string.vpn_nas_token_label)) },
+                        placeholder = { Text(text = stringResource(R.string.vpn_nas_token_placeholder)) },
+                        singleLine = true,
+                        visualTransformation = PasswordVisualTransformation(),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OutlinedButton(onClick = { viewModel.testAndSaveNas(nasUrlText, nasTokenText) }) {
+                            Text(text = stringResource(R.string.vpn_nas_test_save))
+                        }
+                        OutlinedButton(onClick = onScanClicked) {
+                            Text(text = stringResource(R.string.vpn_nas_scan))
+                        }
+                        TextButton(onClick = {
+                            viewModel.clearNas()
+                            nasUrlText = ""
+                            nasTokenText = ""
+                        }) {
+                            Text(
+                                text = stringResource(R.string.vpn_nas_clear),
+                                color = MaterialTheme.colorScheme.error
+                            )
+                        }
+                    }
+                    uiState.nasTestResult?.let { result ->
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = result,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = if (result.startsWith("连接失败")) MaterialTheme.colorScheme.error
+                            else MaterialTheme.colorScheme.primary
+                        )
+                    }
+                    if (uiState.nasConfigured) {
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = stringResource(R.string.vpn_nas_configured, uiState.nasUrl),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
                     }
                 }
             }
@@ -732,3 +790,16 @@ fun ProxySettingsScreen() {
 }
 
 private fun fmtCoord(v: Double): String = String.format("%.4f", v)
+
+
+/** “3 分钟前”等相对时间；ts=0 → “尚未拉取” */
+private fun relTime(tsMs: Long): String {
+    if (tsMs <= 0L) return "尚未拉取"
+    val delta = System.currentTimeMillis() - tsMs
+    return when {
+        delta < 60_000L -> "刚刚"
+        delta < 3_600_000L -> "${delta / 60_000L} 分钟前"
+        delta < 86_400_000L -> "${delta / 3_600_000L} 小时前"
+        else -> "${delta / 86_400_000L} 天前"
+    }
+}

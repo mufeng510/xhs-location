@@ -161,21 +161,22 @@ API Token 首次启动自动生成存 SQLite（**请务必挂载 volume**，否�
 
 ## 12. 开发计划（分阶段）
 
-- **阶段 1｜服务端闭环 + 管理页（proxy-server/ 目录，新文件，不动 App）**：
+- **阶段 1｜服务端闭环 + 管理页**：✅ 已完成（b173abc）。
   抓取源移植（proxifly / ProxyScrape / proxyfreeonly / ProxyClean-#cn / geonode）
   → 去重轮转截断 60 → asyncio 并发探测（XHS TLS + ip2region 归属地）
   → SQLite 入库 → `/api/proxies` `/api/status` `/healthz` + Token 鉴权
   + 管理页（登录 / 列表 / Token / 配对 QR，server-rendered HTML，无前端框架）
   → Dockerfile + docker-compose（bind mount ./data）。
-  测试：解析器/映射/合并单测（pytest），本机容器冒烟。
-- **阶段 3｜Android App 改造**：删 ProxySources/Registry（2f5e189 引入）→ 新增
+  测试：解析器/映射/合并单测（pytest）26 个全过；本机端到端冒烟（uvicorn + 真网）通过；
+  容器内运行测试待 docker run 授权。
+- **阶段 2｜Android App 改造**（即下文之“阶段 3”）：删 ProxySources/Registry（2f5e189 引入）→ 新增
   `ServerProxyFetcher`（GET NAS，Bearer Token，5s 超时）+ 本地缓存 → 设置页 NAS 配置
   （URL/Token/**扫码配对**：vlocation://setup?url=&token=，相机权限 + ML Kit 条码扫描，
   扫码成功自动填入）→ 主页改“数据来自 NAS · 更新于 x 分钟前” → 兜底链路保留 →
   单测更新（解析/降级），README 更新。
-- **阶段 4｜实测验收**：按 §11 AC 逐项验证并记录；问题修复；需要时把验收结果补进本文档。
+- **阶段 3｜实测验收**：按 §11 AC 逐项验证并记录；问题修复；需要时把验收结果补进本文档。
 
-预估改动量：服务端全新约 1000 行（Python+模板+测试）；App 端改约 400 行删改 + 扫码模块；文档同步。
+预估改动量：服务端全新约 1000 行（Python+模板+测试，已完成）；App 端改约 400 行删改 + 扫码模块；文档同步。
 **风险**：LAN 可达性由用户网络决定；服务默认不依赖公网，HTTPS/证书/反代由用户负责。
 
 ## 13. 变更记录
@@ -184,3 +185,4 @@ API Token 首次启动自动生成存 SQLite（**请务必挂载 volume**，否�
 |------|------|------|------|
 | 2026-11-17 | 初版确认；10 项决策落定 | 需求评审 | 初始范围 |
 | 2026-11-17 | 访问方式改为“LAN 直连、反代由用户负责”；配置最小化：仅必填 `ADMIN_PASSWORD`，API Token 自动生成存 SQLite；管理页展示 Token + vlocation://setup 配对二维码；App 侧扫码填入配置；阶段 2 并入阶段 1 | 用户追加备注 | API 与部署章节、AC（§7/§10/§11/§12）、阶段 3 新增扫码模块 |
+| 2026-11-17 | 阶段编号拨正：阶段 2=App 改造（即原“阶段 3”），阶段 3=实测验收（即原“阶段 4”）；阶段 1 标记 b173abc 完成 | 编号歧义（用户问“阶段二”） | §12、本文档其余阶段引用 |

@@ -21,8 +21,14 @@
         android:label="@string/app_name"
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
+        android:usesCleartextTraffic="true"
         android:theme="@style/AppTheme"
         android:dataExtractionRules="@xml/data_extraction_rules">
+
+        <!-- 扫码配对库（Google Play Services Code Scanner）在安装时下发模型，减少首扫等待 -->
+        <meta-data
+            android:name="com.google.mlkit.vision.DEPENDENCIES"
+            android:value="barcode_ui" />
 
         <activity
             android:name=".ui.MainActivity"
